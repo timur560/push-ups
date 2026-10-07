@@ -1,0 +1,259 @@
+<!DOCTYPE html>
+<html lang="en"><head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">
+<meta name="theme-color" content="#2447f5">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-title" content="Pushups">
+<title>Pushup Log</title>
+<style>
+:root{--bg:#eceee8;--card:#f8f9f5;--ink:#17212b;--mut:#6a7580;--acc:#2447f5;--onacc:#fff;--line:#c9cec4;--ok:#1f8a4c;--bad:#c2372e}
+@media(prefers-color-scheme:dark){:root{--bg:#12171d;--card:#1b232c;--ink:#e8ecef;--mut:#8d99a5;--acc:#6c88ff;--onacc:#0e1320;--line:#2c3641;--ok:#4cc27f;--bad:#ff7a70}}
+*{box-sizing:border-box;-webkit-tap-highlight-color:transparent}
+html,body{margin:0;background:var(--bg);color:var(--ink);font:16px/1.4 system-ui,-apple-system,"Segoe UI",Roboto,sans-serif}
+body{padding:calc(env(safe-area-inset-top,0px) + 14px) 14px calc(env(safe-area-inset-bottom,0px) + 84px)}
+main{max-width:480px;margin:0 auto}
+h1{font-size:22px;margin:0 0 12px;letter-spacing:-.01em}
+.card{background:var(--card);border:1px solid var(--line);border-radius:14px;padding:14px;margin-bottom:12px}
+.card p{margin:4px 0 10px}
+.muted{color:var(--mut);font-size:14px}
+button,select,input{font:inherit;color:inherit}
+button{border:1px solid var(--line);background:transparent;border-radius:10px;padding:11px 14px;min-height:44px;cursor:pointer}
+button.pri{background:var(--acc);color:var(--onacc);border-color:var(--acc);font-weight:700;width:100%}
+button.dng{color:var(--bad);border-color:var(--bad)}
+button:focus-visible,input:focus-visible,select:focus-visible{outline:3px solid var(--acc);outline-offset:2px}
+input,select{background:var(--bg);border:1px solid var(--line);border-radius:10px;padding:10px;width:100%;min-height:44px}
+label{display:block;font-size:14px;color:var(--mut);margin:10px 0 4px}
+.row{display:flex;gap:8px;align-items:center}.row>*{flex:1}
+.big{font-size:20px;font-weight:700;font-variant-numeric:tabular-nums}
+.counter{display:flex;align-items:center;gap:10px;margin:10px 0}
+.counter button{width:64px;flex:none;font-size:28px;font-weight:700;min-height:64px}
+#cur{flex:1;min-width:0;text-align:center;font-size:64px;font-weight:800;border:0;background:transparent;font-variant-numeric:tabular-nums;padding:0}
+.tap{font-size:22px;font-weight:800;width:100%;min-height:84px;background:var(--ink);color:var(--bg);border-radius:14px;margin-bottom:10px}
+.timer{display:flex;justify-content:space-between;font-variant-numeric:tabular-nums;font-weight:700}
+.rest{color:var(--acc)}
+.chips{display:flex;flex-wrap:wrap;gap:6px}
+.chip{border:1px solid var(--line);border-radius:999px;padding:5px 11px;font-size:14px;font-variant-numeric:tabular-nums;min-height:0;background:transparent}
+.chip.done{background:var(--ok);border-color:var(--ok);color:#fff}
+.chip.x::after{content:" \00d7";opacity:.7}
+.stats{display:grid;grid-template-columns:1fr 1fr;gap:8px;margin-bottom:12px}
+.stats .card{margin:0}.stats b{display:block;font-size:26px;font-variant-numeric:tabular-nums}
+.bar{height:8px;background:var(--line);border-radius:4px;overflow:hidden;margin:6px 0 12px}.bar i{display:block;height:100%;background:var(--acc)}
+.seg{display:flex;gap:6px;margin-bottom:8px}.seg button{flex:1;padding:6px;min-height:36px}.seg .on{background:var(--ink);color:var(--bg);border-color:var(--ink)}
+svg{width:100%;height:auto;display:block}
+.hist{display:flex;justify-content:space-between;align-items:center;gap:8px;padding:9px 0;border-top:1px solid var(--line)}
+.hist small{display:block;color:var(--mut)}
+nav{position:fixed;left:0;right:0;bottom:0;display:flex;background:var(--card);border-top:1px solid var(--line);padding-bottom:env(safe-area-inset-bottom,0px)}
+nav button{flex:1;border:0;border-radius:0;min-height:56px;color:var(--mut)}
+nav button.on{color:var(--acc);font-weight:700;box-shadow:inset 0 3px 0 var(--acc)}
+@media(prefers-reduced-motion:no-preference){button{transition:transform .08s}button:active{transform:scale(.97)}}
+</style></head>
+<body><main id="v"></main>
+<nav id="nav"></nav>
+<script>
+const K='pu_v1',A='pu_active',$=s=>document.querySelector(s);
+const def=()=>({history:[],plan:null,rest:60});
+let D,act,tab='train',mode='total',editing=false;
+try{D=Object.assign(def(),JSON.parse(localStorage[K]||'{}'))}catch(e){D=def()}
+try{act=JSON.parse(localStorage[A]||'null')}catch(e){act=null}
+const save=()=>{try{localStorage[K]=JSON.stringify(D)}catch(e){}};
+const saveAct=()=>{try{act?localStorage[A]=JSON.stringify(act):localStorage.removeItem(A)}catch(e){}};
+const sum=a=>a.reduce((x,y)=>x+y,0);
+const fmtD=t=>new Date(t).toLocaleString([],{day:'numeric',month:'short',hour:'2-digit',minute:'2-digit'});
+const mmss=s=>{s=Math.max(0,Math.round(s));return Math.floor(s/60)+':'+String(s%60).padStart(2,'0')};
+const nextIdx=()=>D.plan?D.plan.sessions.findIndex(s=>!s.done):-1;
+
+/* ---------- Training ---------- */
+function start(pi){
+  const s=pi>=0?D.plan.sessions[pi]:null;
+  act={t0:Date.now(),sets:[],pi:pi,cur:s&&!s.test?s.sets[0]:10,restEnd:0};
+  saveAct();wake();render();
+}
+function adj(d){act.cur=Math.max(0,(+act.cur||0)+d);$('#cur').value=act.cur;saveAct()}
+function logSet(){
+  const n=+act.cur;if(!(n>0))return;
+  act.sets.push(n);const rs=(act.pi>=0&&D.plan.sessions[act.pi].rest)||D.rest;act.restEnd=rs?Date.now()+rs*1000:0;
+  const s=act.pi>=0?D.plan.sessions[act.pi]:null;
+  if(s&&!s.test&&s.sets[act.sets.length])act.cur=s.sets[act.sets.length];
+  saveAct();render();
+}
+function rmSet(i){act.sets.splice(i,1);saveAct();render()}
+function discard(){if(confirm('Discard this workout without saving?')){act=null;saveAct();render()}}
+function finish(){
+  if(!act.sets.length){act=null;saveAct();render();return}
+  const rec={id:Date.now(),t:act.t0,end:Date.now(),sets:act.sets,total:sum(act.sets),pi:act.pi};
+  if(act.pi>=0&&D.plan){
+    const ps=D.plan.sessions[act.pi];ps.done=rec.id;
+    if(ps.test){
+      const nm=Math.max(...act.sets),P=D.plan;P.max=nm;
+      if(nm>=P.goal){P.sessions=P.sessions.filter(x=>x.w<=ps.w);alert('Goal reached: '+nm+' push-ups! Create a new plan with a higher goal.')}
+      else P.sessions=P.sessions.filter(x=>x.w<=ps.w).concat(gen(nm,P.goal,P.weeks,P.days,ps.w+1));
+    }
+  }
+  D.history.push(rec);save();act=null;saveAct();tab='stats';render();
+}
+let lock=null;
+async function wake(){try{lock=await navigator.wakeLock.request('screen')}catch(e){}}
+document.addEventListener('visibilitychange',()=>{if(act&&document.visibilityState==='visible')wake()});
+setInterval(()=>{
+  if(!act)return;
+  const e=$('#el');if(e)e.textContent=mmss((Date.now()-act.t0)/1000);
+  const r=$('#rest');
+  if(act.restEnd){
+    const left=(act.restEnd-Date.now())/1000;
+    if(left<=0){act.restEnd=0;saveAct();try{navigator.vibrate&&navigator.vibrate([200,100,200])}catch(e){}if(r)r.textContent='Rest over: go!'}
+    else if(r)r.textContent='Rest '+mmss(left);
+  }
+},500);
+
+function vTrain(){
+  if(!act){
+    const i=nextIdx();let h='<h1>Train</h1>';
+    if(i>=0){const s=D.plan.sessions[i];
+      h+=`<div class=card><b>Next in your plan</b><p class=muted>Week ${s.w+1}, ${s.test?'test day':'day '+(s.d+1)+(s.type?' · '+s.type:'')}</p><p class=big>${s.test?'Max test: one set to failure':s.sets.join(' · ')}</p><button class=pri onclick="start(${i})">Start planned workout</button></div>`;
+    }else if(D.plan)h+='<div class=card><b>Plan complete</b><p class=muted>Create a new plan from your new max.</p><button onclick="tab=\'plan\';editing=true;render()">New plan</button></div>';
+    h+=`<div class=card><b>Free workout</b><p class=muted>Log any number of sets without a plan.</p><button class="${i>=0?'':'pri'}" style="${i>=0?'':''}width:100%" onclick="start(-1)">Start free workout</button></div>`;
+    const l=D.history[D.history.length-1];
+    if(l)h+=`<div class=card><b>Last workout</b><p class=muted>${fmtD(l.t)}</p><p class=big>${l.total} reps · ${l.sets.join(' · ')}</p></div>`;
+    return h;
+  }
+  const n=act.sets.length,s=act.pi>=0?D.plan.sessions[act.pi]:null;
+  const tg=s?(s.test?'Max test: go to failure':(n<s.sets.length?`Target: ${s.sets[n]} reps`:'Plan done: extra set')):'Free workout';
+  return `<h1>Set ${n+1}</h1>
+  <div class=card><div class=timer><span>Time <span id=el>${mmss((Date.now()-act.t0)/1000)}</span></span><span class=rest id=rest>${act.restEnd?'Rest '+mmss((act.restEnd-Date.now())/1000):''}</span></div>
+  <p class=muted>${tg}</p>
+  <div class=counter><button onclick="adj(-1)" aria-label="minus one">−</button><input id=cur type=number inputmode=numeric min=0 value="${act.cur}" oninput="act.cur=+this.value||0;saveAct()"><button onclick="adj(1)" aria-label="plus one">+</button></div>
+  <button class=tap onclick="adj(1)">Tap +1 per push-up</button>
+  <button class=pri onclick="logSet()">Log set</button></div>
+  <div class=card><b>Sets so far · ${sum(act.sets)} reps</b><p class=muted>Tap a set to remove it.</p><div class=chips>${act.sets.map((x,i)=>`<button class="chip x" onclick="rmSet(${i})">${x}</button>`).join('')||'<span class=muted>No sets yet</span>'}</div></div>
+  <div class=row><button class=dng onclick="discard()">Discard</button><button onclick="finish()"><b>Stop &amp; save</b></button></div>`;
+}
+
+/* ---------- Plan ---------- */
+const TYPES=['Volume','Heavy','Ladder','Descending','Volume'],REST={Volume:60,Heavy:120,Ladder:60,Descending:60};
+function gen(max,goal,weeks,days,w0){
+  const S=[],g=Math.min(.08,Math.max(.02,Math.pow(goal/max,1/(weeks-w0))-1));
+  const isTest=w=>w===weeks-1||((w+1)%3===0&&w<weeks-2);
+  for(let w=w0;w<weeks;w++){
+    const tw=isTest(w),i=w-w0,tm=max*Math.pow(1+g,i),r=f=>Math.max(1,Math.round(tm*f)),x=i%3===1?1:0;
+    for(let d=0;d<days;d++){
+      const type=TYPES[d];let f;
+      if(type==='Volume')f=[.55,.5,.5,.45,.45,.4].slice(0,5+x);
+      else if(type==='Heavy')f=[.7,.65,.6,.6,.55].slice(0,4+x);
+      else if(type==='Ladder')f=[.4,.55,.7,.55,.4];
+      else f=[.7,.6,.5,.45,.4,.4];
+      let sets=f.map(r);
+      if(tw)sets=sets.slice(0,Math.max(2,sets.length-1));
+      S.push({w,d,type,rest:REST[type],sets,done:null});
+    }
+    if(tw)S.push({w,d:days,test:true,type:'Max test',rest:0,sets:[],done:null});
+  }
+  return S;
+}
+function makePlan(){
+  const max=+$('#pm').value,goal=+$('#pg').value,weeks=+$('#pw').value,days=+$('#pd').value;
+  if(!(max>0)){alert('Enter your current max (most push-ups in one set).');return}
+  if(!(goal>max)){alert('Your goal must be higher than your current max.');return}
+  const need=Math.pow(goal/max,1/weeks)-1;
+  if(need>.1&&!confirm('Going from '+max+' to '+goal+' in '+weeks+' weeks needs about '+Math.round(need*100)+'% more reps per week, which is aggressive. Around '+Math.ceil(Math.log(goal/max)/Math.log(1.08))+' weeks is more realistic. Create this plan anyway?'))return;
+  if(D.plan&&!editing===false&&!confirm('Replace the current plan? Plan progress will reset (workout history is kept).'))return;
+  D.plan={max,goal,weeks,days,created:Date.now(),sessions:gen(max,goal,weeks,days,0)};
+  save();editing=false;render();
+}
+function delPlan(){if(confirm('Delete the plan? Workout history is kept.')){D.plan=null;save();render()}}
+function vPlan(){
+  const P=D.plan;
+  if(!P||editing){
+    return `<h1>${P?'Change plan':'Create plan'}</h1><div class=card>
+    <label for=pm>Current max (reps in one set)</label><input id=pm type=number inputmode=numeric min=1 value="${P?P.max:''}">
+    <label for=pg>Goal (reps in one set)</label><input id=pg type=number inputmode=numeric min=2 value="${P&&P.goal?P.goal:''}" placeholder="e.g. 50">
+    <label for=pw>Length</label><select id=pw>${[4,6,8,10,12].map(x=>`<option value=${x} ${x==(P?P.weeks:6)?'selected':''}>${x} weeks</option>`).join('')}</select>
+    <label for=pd>Days per week</label><select id=pd>${[2,3,4,5].map(x=>`<option value=${x} ${x==(P?P.days:3)?'selected':''}>${x} days</option>`).join('')}</select>
+    <p class=muted>Each week mixes day types (volume, heavy, ladder, descending) with 40-70% of your max per set, so you never train to failure. Weeks get slightly harder, the week before a test is lighter, a max test comes every 3 weeks and at the end, and the rest of the plan adapts to each new max.</p>
+    <button class=pri onclick="makePlan()">Generate plan</button>
+    ${P?'<p></p><button style="width:100%" onclick="editing=false;render()">Cancel</button>':''}</div>`;
+  }
+  const done=P.sessions.filter(s=>s.done).length,tot=P.sessions.length;
+  let h=`<h1>Plan</h1><div class=card><b>Goal ${P.goal||'?'} · ${P.weeks} weeks · ${P.days} days/week</b><p class=muted>Current max ${P.max}</p><div class=bar><i style="width:${done/tot*100}%"></i></div><p class=muted>${done} of ${tot} sessions done</p><div class=row><button onclick="editing=true;render()">Change plan</button><button class=dng onclick="delPlan()">Delete</button></div></div>`;
+  for(let w=0;w<P.weeks;w++){
+    h+=`<div class=card><b>Week ${w+1}</b>`+P.sessions.map((s,i)=>s.w!==w?'':`<div class=hist><div><b>${s.test?'Test day':'Day '+(s.d+1)+(s.type?' · '+s.type:'')}</b><small>${s.test?'One set to failure, perfect form':s.sets.length+' sets: '+s.sets.join(' · ')+(s.rest?' · rest '+s.rest+'s':'')}</small></div>${s.done?'<span style="color:var(--ok);font-weight:700">Done</span>':act?'':`<button onclick="start(${i});tab='train';render()">Start</button>`}</div>`).join('')+'</div>';
+  }
+  return h+'<p class=muted>On a test day do one set to failure with good form. The following weeks are recalculated from your result.</p>';
+}
+
+/* ---------- Stats ---------- */
+function chart(){
+  const H=D.history.slice(-20);
+  if(H.length<2)return '<p class=muted>Save at least two workouts to see your progress chart.</p>';
+  const v=H.map(h=>mode==='total'?h.total:Math.max(...h.sets)),W=320,Ht=150,p=26,mx=Math.max(...v)||1;
+  const X=i=>p+i*(W-2*p)/(H.length-1),Y=x=>Ht-p-x/mx*(Ht-2*p);
+  const pts=v.map((x,i)=>X(i)+','+Y(x)).join(' ');
+  return `<svg viewBox="0 0 ${W} ${Ht}" role="img" aria-label="Progress chart"><line x1=${p} x2=${W-p} y1=${Ht-p} y2=${Ht-p} stroke="var(--line)"/><polyline points="${pts}" fill="none" stroke="var(--acc)" stroke-width=3 stroke-linejoin=round />${v.map((x,i)=>`<circle cx=${X(i)} cy=${Y(x)} r=4 fill="var(--acc)"/>`).join('')}<text x=${p} y=14 font-size=11 fill="var(--mut)">max ${mx}</text><text x=${p} y=${Ht-8} font-size=10 fill="var(--mut)">${new Date(H[0].t).toLocaleDateString([],{day:'numeric',month:'short'})}</text><text x=${W-p} y=${Ht-8} font-size=10 text-anchor=end fill="var(--mut)">${new Date(H[H.length-1].t).toLocaleDateString([],{day:'numeric',month:'short'})}</text></svg>`;
+}
+function streak(){
+  const days=new Set(D.history.map(h=>new Date(h.t).toDateString()));
+  let d=new Date(),c=0;if(!days.has(d.toDateString()))d.setDate(d.getDate()-1);
+  while(days.has(d.toDateString())){c++;d.setDate(d.getDate()-1)}return c;
+}
+function delW(id){
+  if(!confirm('Delete this workout?'))return;
+  D.history=D.history.filter(h=>h.id!==id);
+  if(D.plan)D.plan.sessions.forEach(s=>{if(s.done===id)s.done=null});
+  save();render();
+}
+function clearStats(){
+  if(!confirm('Delete ALL workout history? This cannot be undone.'))return;
+  D.history=[];if(D.plan)D.plan.sessions.forEach(s=>s.done=null);save();render();
+}
+function vStats(){
+  const H=D.history;
+  if(!H.length)return '<h1>Stats</h1><div class=card><p>No workouts yet. Finish your first workout to see progress here.</p></div>';
+  const best=Math.max(...H.map(h=>Math.max(...h.sets)));
+  return `<h1>Stats</h1><div class=stats>
+  <div class=card><b>${H.length}</b><span class=muted>workouts</span></div>
+  <div class=card><b>${sum(H.map(h=>h.total))}</b><span class=muted>total reps</span></div>
+  <div class=card><b>${best}</b><span class=muted>best set</span></div>
+  <div class=card><b>${streak()}</b><span class=muted>day streak</span></div></div>
+  <div class=card><div class=seg><button class="${mode=='total'?'on':''}" onclick="mode='total';render()">Reps per workout</button><button class="${mode=='best'?'on':''}" onclick="mode='best';render()">Best set</button></div>${chart()}</div>
+  <div class=card><b>History</b>${H.slice().reverse().map(h=>`<div class=hist><div><b>${h.total} reps</b><small>${fmtD(h.t)} · ${h.sets.join(' · ')}</small></div><button class=dng onclick="delW(${h.id})" aria-label="Delete workout">✕</button></div>`).join('')}</div>
+  <button class=dng style="width:100%" onclick="clearStats()">Clear all statistics</button>`;
+}
+
+/* ---------- More ---------- */
+function setRest(v){D.rest=+v;save()}
+function exp(){
+  const a=document.createElement('a');a.href=URL.createObjectURL(new Blob([JSON.stringify(D)],{type:'application/json'}));
+  a.download='pushups-backup-'+new Date().toISOString().slice(0,10)+'.json';a.click();
+}
+function imp(inp){
+  const f=inp.files[0];if(!f)return;const r=new FileReader();
+  r.onload=()=>{try{const x=JSON.parse(r.result);if(!Array.isArray(x.history))throw 0;if(confirm('Replace current data with this backup?')){D=Object.assign(def(),x);save();render()}}catch(e){alert('This file is not a valid backup.')}};
+  r.readAsText(f);
+}
+function vMore(){
+  return `<h1>More</h1><div class=card><label for=rs>Rest timer between sets</label><select id=rs onchange="setRest(this.value)">${[0,30,45,60,90,120,180].map(x=>`<option value=${x} ${x==D.rest?'selected':''}>${x?x+' seconds':'Off'}</option>`).join('')}</select></div>
+  <div class=card><b>Backup</b><p class=muted>Data lives only in this browser. Export a copy now and then.</p><div class=row><button onclick="exp()">Export</button><button onclick="$('#imp').click()">Import</button></div><input id=imp type=file accept=application/json hidden onchange="imp(this)"></div>
+  <div class=card><b>Install on your phone</b><p class=muted>Android Chrome: menu → Install app. iPhone Safari: Share → Add to Home Screen. The screen stays awake during a workout.</p></div>`;
+}
+
+/* ---------- Shell ---------- */
+const TABS=[['train','Train'],['plan','Plan'],['stats','Stats'],['more','More']];
+function render(){
+  $('#nav').innerHTML=TABS.map(t=>`<button class="${tab==t[0]?'on':''}" onclick="tab='${t[0]}';render()">${t[1]}</button>`).join('');
+  $('#v').innerHTML={train:vTrain,plan:vPlan,stats:vStats,more:vMore}[tab]();
+}
+render();
+
+/* ---------- PWA bits ---------- */
+(function(){
+  const icon=z=>{const c=document.createElement('canvas');c.width=c.height=z;const x=c.getContext('2d');x.fillStyle='#2447f5';x.fillRect(0,0,z,z);x.fillStyle='#fff';x.lineCap='round';x.lineWidth=z*.07;x.strokeStyle='#fff';x.beginPath();x.moveTo(z*.2,z*.62);x.lineTo(z*.8,z*.52);x.stroke();x.beginPath();x.arc(z*.8,z*.4,z*.07,0,7);x.fill();x.beginPath();x.moveTo(z*.3,z*.6);x.lineTo(z*.3,z*.75);x.moveTo(z*.7,z*.54);x.lineTo(z*.7,z*.75);x.stroke();return c.toDataURL('image/png')};
+  try{
+    const i192=icon(192),i512=icon(512);
+    const m={name:'Pushup Log',short_name:'Pushups',display:'standalone',orientation:'portrait',background_color:'#2447f5',theme_color:'#2447f5',start_url:location.href.split('#')[0],icons:[{src:i192,sizes:'192x192',type:'image/png'},{src:i512,sizes:'512x512',type:'image/png'}]};
+    const l=document.createElement('link');l.rel='manifest';l.href=URL.createObjectURL(new Blob([JSON.stringify(m)],{type:'application/manifest+json'}));document.head.appendChild(l);
+    const a=document.createElement('link');a.rel='apple-touch-icon';a.href=i192;document.head.appendChild(a);
+    const f=document.createElement('link');f.rel='icon';f.href=i192;document.head.appendChild(f);
+  }catch(e){}
+})();
+</script></body></html>
