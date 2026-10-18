@@ -83,6 +83,41 @@ nav button.on{color:var(--ink);background:var(--soft);font-weight:800}
 .hero .muted{color:color-mix(in srgb,var(--bg) 70%,transparent)}
 .hero h2{font-size:24px}
 .suggest{border-color:color-mix(in srgb,var(--ok) 40%,var(--line));background:var(--soft)}
+.kb-workout{display:flex;flex-direction:column;gap:8px}
+.kb-workout-head .eyebrow{margin-bottom:2px}
+.kb-workout-head h1{font-size:25px;margin:0}
+.kb-summary{display:flex;flex:1;flex-direction:column;min-height:110px;margin:0;padding:12px}
+.kb-summary-head{display:flex;justify-content:space-between;align-items:center;gap:8px;margin-bottom:7px;font-size:14px;font-weight:750}
+.kb-summary-head .badge{white-space:nowrap}
+.kb-set-list{min-height:0;overflow:auto}
+.kb-set-row{display:flex;align-items:center;gap:8px;padding:5px 0;border-top:1px solid var(--line);font-size:14px}
+.kb-set-row span:first-child{min-width:0;flex:1}
+.kb-set-reps{font-variant-numeric:tabular-nums;font-weight:800;white-space:nowrap}
+.kb-set-remove{width:34px;min-height:34px;padding:0;color:var(--mut);border:0;background:transparent;font-size:20px}
+.kb-add{margin:0;padding:12px}
+.kb-add h2{font-size:15px;margin:0 0 6px}
+.kb-exercise-picker{position:relative}
+.kb-exercise-picker summary{display:flex;align-items:center;gap:8px;min-height:42px;padding:5px 10px;border:1px solid var(--line);border-radius:13px;background:var(--bg);cursor:pointer;list-style:none;font-weight:650}
+.kb-exercise-picker summary::-webkit-details-marker{display:none}
+.kb-picker-thumb{display:block;width:32px;height:32px;flex:none;object-fit:cover;border-radius:8px;background:var(--soft)}
+.kb-picker-placeholder{display:grid;place-items:center;color:var(--mut);font-size:10px}
+.kb-picker-name{flex:1;min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.kb-picker-chevron{color:var(--mut);font-size:13px}
+.kb-exercise-picker.opens-up .kb-exercise-options{top:auto;bottom:calc(100% + 5px)}
+.kb-exercise-options{position:absolute;z-index:4;top:calc(100% + 5px);left:0;right:0;max-height:var(--kb-options-max-height,220px);overflow:auto;overscroll-behavior:contain;padding:4px;border:1px solid var(--line);border-radius:14px;background:var(--card);box-shadow:0 10px 24px #0003}
+.kb-exercise-option{display:flex;align-items:center;gap:8px;width:100%;min-height:42px;padding:5px 8px;border:0;border-radius:10px;background:transparent;text-align:left}
+.kb-exercise-option[aria-selected=true]{background:var(--soft)}
+.kb-add-controls{display:grid;grid-template-columns:repeat(3,minmax(0,1fr)) 44px repeat(3,minmax(0,1fr)) 38px;gap:3px;margin-top:7px}
+.kb-qty-button{min-width:0;min-height:38px;padding:0 1px;font-size:11px;font-variant-numeric:tabular-nums}
+.kb-qty{width:100%;min-width:0;min-height:38px;padding:4px 2px;text-align:center;font-weight:800;font-variant-numeric:tabular-nums}
+.kb-add-button{display:grid;place-items:center;width:38px;min-height:38px;padding:0;background:var(--acc);color:var(--onacc);border-color:var(--acc);border-radius:12px}
+.kb-add-button svg{width:20px;height:20px}
+.kb-workout-actions{display:flex;gap:8px}
+.kb-workout-actions button{min-height:42px;padding:7px 12px}
+.kb-workout-actions .pri{flex:1}
+body.kb-active{padding:calc(env(safe-area-inset-top,0px) + 10px) 12px calc(env(safe-area-inset-bottom,0px) + 78px)}
+body.kb-active main{height:calc(100dvh - 88px - env(safe-area-inset-top,0px) - env(safe-area-inset-bottom,0px))}
+body.kb-active .kb-workout{height:100%}
 @media(prefers-reduced-motion:no-preference){button{transition:transform .1s,background-color .15s}button:active{transform:scale(.97)}}
 </style></head>
 <body><main id="v"></main>
@@ -128,6 +163,18 @@ let D,act,tab='train',mode='total',editing=false,kbSetup=false,kbWeightChoice=16
 const sportByScreen={train:'push',stats:'push',more:'push'};
 try{D=Object.assign(def(),JSON.parse(localStorage[K]||'{}'))}catch(e){D=def()}
 try{act=JSON.parse(localStorage[A]||'null')}catch(e){act=null}
+if(act?.type==='kb'&&!Array.isArray(act.sets)){
+  act.sets=(act.exercises||Object.keys(act.counts||{})).flatMap(id=>{
+    const reps=+act.counts?.[id]||0;
+    return reps>0?[{exercise:id,reps}]:[];
+  });
+  act.exercise=act.exercises?.[0]||KB_EXERCISES[0][0];
+  act.draftReps=10;
+}
+if(act?.type==='kb'){
+  act.exercise=act.exercise||act.exercises?.[0]||KB_EXERCISES[0][0];
+  act.draftReps=+act.draftReps>0?+act.draftReps:10;
+}
 const save=()=>{try{localStorage[K]=JSON.stringify(D)}catch(e){}};
 const saveAct=()=>{try{act?localStorage[A]=JSON.stringify(act):localStorage.removeItem(A)}catch(e){}};
 const sum=a=>a.reduce((x,y)=>x+y,0);
@@ -160,16 +207,65 @@ function startKb(){
   const weight=+kbWeightChoice;
   if(!(weight>0)){alert('Choose a kettlebell weight greater than zero.');return}
   D.kbWeight=weight;
-  act={type:'kb',t0:Date.now(),weight,counts:Object.fromEntries(D.kbExercises.map(id=>[id,0])),exercises:D.kbExercises.slice()};
+  act={type:'kb',t0:Date.now(),weight,sets:[],exercises:D.kbExercises.slice(),exercise:D.kbExercises[0]||'',draftReps:10};
   kbSetup=false;save();saveAct();wake();render();
 }
-function adjKb(id,delta){
+function setKbExercise(id){
   if(!act||act.type!=='kb'||!act.exercises.includes(id))return;
-  act.counts[id]=Math.max(0,(+act.counts[id]||0)+delta);saveAct();render();
+  act.exercise=id;saveAct();
 }
-function setKbCount(id,value){
-  if(!act||act.type!=='kb'||!act.exercises.includes(id))return;
-  act.counts[id]=Math.max(0,Math.floor(+value||0));saveAct();
+function kbPickerThumb(id){
+  const entry=KB_ILLUSTRATIONS[id];
+  return entry
+    ?`<img class=kb-picker-thumb src="./images/exercises/${entry[0]}.webp" alt="" loading=lazy>`
+    :'<span class="kb-picker-thumb kb-picker-placeholder" aria-hidden=true>—</span>';
+}
+function positionKbExercisePicker(){
+  const picker=$('.kb-exercise-picker');
+  if(!picker?.open)return;
+  const summary=picker.querySelector('summary'),rect=summary.getBoundingClientRect();
+  const viewportHeight=window.visualViewport?.height||window.innerHeight;
+  const viewportTop=window.visualViewport?.offsetTop||0;
+  const gap=13,desired=picker.querySelector('.kb-exercise-options').scrollHeight+8;
+  const navTop=$('#nav')?.getBoundingClientRect().top??viewportTop+viewportHeight;
+  const viewportBottom=Math.min(viewportTop+viewportHeight,navTop);
+  const above=Math.max(0,rect.top-viewportTop-gap),below=Math.max(0,viewportBottom-rect.bottom-gap);
+  const openUp=above>below;
+  picker.classList.toggle('opens-up',openUp);
+  picker.style.setProperty('--kb-options-max-height',Math.min(desired,openUp?above:below)+'px');
+}
+function setupKbExercisePicker(){
+  const picker=$('.kb-exercise-picker');
+  if(picker)picker.addEventListener('toggle',()=>{
+    if(picker.open)positionKbExercisePicker();
+    else picker.style.removeProperty('--kb-options-max-height');
+  });
+  const root=$('#v');
+  if(root.dataset.kbPickerResizeReady)return;
+  root.dataset.kbPickerResizeReady='true';
+  window.addEventListener('resize',positionKbExercisePicker);
+  window.visualViewport?.addEventListener('resize',positionKbExercisePicker);
+}
+function setKbDraftReps(value){
+  if(!act||act.type!=='kb')return;
+  act.draftReps=Math.max(0,Math.floor(+value||0));saveAct();
+}
+function adjustKbDraftReps(delta){
+  if(!act||act.type!=='kb')return;
+  act.draftReps=Math.max(1,(+act.draftReps||1)+delta);
+  const input=$('#kb-reps');if(input)input.value=act.draftReps;
+  saveAct();
+}
+function addKbSet(){
+  if(!act||act.type!=='kb'||!act.exercises.includes(act.exercise))return;
+  const reps=Math.floor(+act.draftReps||0);
+  if(reps<1)return;
+  act.sets.push({exercise:act.exercise,reps});
+  saveAct();render();
+}
+function removeKbSet(index){
+  if(!act||act.type!=='kb')return;
+  act.sets.splice(index,1);saveAct();render();
 }
 function kbImageButton(id,name){
   const entry=KB_ILLUSTRATIONS[id];
@@ -212,9 +308,12 @@ function finish(){
     save();act=null;saveAct();tab='stats';render();return;
   }
   if(act.type==='kb'){
-    const reps=Object.values(act.counts).reduce((total,n)=>total+(+n||0),0);
+    const counts=act.sets.reduce((totals,set)=>{
+      totals[set.exercise]=(totals[set.exercise]||0)+(+set.reps||0);return totals;
+    },{});
+    const reps=act.sets.reduce((total,set)=>total+(+set.reps||0),0);
     if(!reps){act=null;saveAct();render();return}
-    D.kbHistory.push({id:Date.now(),t:act.t0,end:Date.now(),weight:act.weight,counts:act.counts,exercises:act.exercises,reps,kg:reps*act.weight});
+    D.kbHistory.push({id:Date.now(),t:act.t0,end:Date.now(),weight:act.weight,counts,sets:act.sets,exercises:act.exercises,reps,kg:reps*act.weight});
     save();act=null;saveAct();tab='stats';render();return;
   }
   if(!act.sets.length){act=null;saveAct();render();return}
@@ -287,12 +386,22 @@ function vPushTest(){
   return `<p class=eyebrow>Push-ups · max test</p><h1>Find your max</h1><div class=hero><h2>One set. Your best effort.</h2><p class=muted>Do as many controlled push-ups as you can with good form. Stop when you need to; your result is saved separately from regular workouts.</p></div><div class=card><div class=timer><span>Time <span id=el>${mmss((Date.now()-act.t0)/1000)}</span></span><span class=badge>Single set</span></div><label for=cur>Push-ups completed</label><div class=counter><button onclick="adj(-1)" aria-label="minus one">−</button><input id=cur type=number inputmode=numeric min=0 value="${act.cur}" oninput="act.cur=Math.max(0,Math.floor(+this.value||0));saveAct()"><button onclick="adj(1)" aria-label="plus one">+</button></div><button class=tap onclick="adj(1)">Tap +1 per push-up</button><button class=pri onclick="finish()">Finish &amp; save max test</button></div><button class=dng style="width:100%" onclick="discard()">Discard test</button>`;
 }
 function vKbWorkout(){
-  const total=Object.values(act.counts).reduce((a,b)=>a+(+b||0),0);
-  const exercises=act.exercises.map(id=>{
-    const name=KB_EXERCISES.find(x=>x[0]===id)?.[1]||id,count=+act.counts[id]||0;
-    return `<div class=exercise><div class=exercise-head><div><b>${name}</b><div class=muted>${act.weight} kg kettlebell</div></div>${kbImageButton(id,name)}<input class=exercise-count aria-label="${name} repetitions" type=number inputmode=numeric min=0 value="${count}" oninput="setKbCount('${id}',this.value)"></div><div class=stepper>${[-10,-5,-1,1,5,10].map(n=>`<button onclick="adjKb('${id}',${n})">${n>0?'+':''}${n}</button>`).join('')}</div></div>`;
+  const total=act.sets.reduce((sum,set)=>sum+(+set.reps||0),0);
+  const setRows=act.sets.map((set,index)=>{
+    const name=KB_EXERCISES.find(x=>x[0]===set.exercise)?.[1]||set.exercise;
+    return `<div class=kb-set-row><span>${index+1}. ${name}</span><span class=kb-set-reps>${set.reps} reps</span><button class=kb-set-remove type=button onclick="removeKbSet(${index})" aria-label="Remove set ${index+1}">×</button></div>`;
   }).join('');
-  return `<p class=eyebrow>Kettlebell · ${act.weight} kg</p><h1>Workout</h1><div class=card><div class=timer><span>Time <span id=el>${mmss((Date.now()-act.t0)/1000)}</span></span><span class=badge>${total*act.weight} kg moved</span></div><p class=muted>Tap the step buttons or edit a count directly.</p>${exercises||'<p class=muted>No exercises selected. Finish and choose exercises in More.</p>'}</div><div class=card><b>${total} total reps</b><p class=muted>${total*act.weight} kg volume · ${act.exercises.length} exercises</p><button class=pri onclick="finish()">Finish &amp; save workout</button></div><button class=dng style="width:100%" onclick="discard()">Discard workout</button>`;
+  const exerciseOptions=act.exercises.map(id=>{
+    const name=KB_EXERCISES.find(x=>x[0]===id)?.[1]||id;
+    return `<button class=kb-exercise-option type=button role=option aria-selected="${id===act.exercise}" onclick="setKbExercise('${id}');render()">${kbPickerThumb(id)}<span>${name}</span></button>`;
+  }).join('');
+  const selectedName=KB_EXERCISES.find(x=>x[0]===act.exercise)?.[1]||act.exercise;
+  return `<div class=kb-workout>
+    <header class=kb-workout-head><p class=eyebrow>Kettlebell · ${act.weight} kg · <span id=el>${mmss((Date.now()-act.t0)/1000)}</span></p><h1>Workout</h1></header>
+    <section class="card kb-summary" aria-label="Workout sets"><div class=kb-summary-head><span>${act.sets.length} ${act.sets.length===1?'set':'sets'} · ${total} reps</span><span class=badge>${total*act.weight} kg</span></div><div class=kb-set-list>${setRows||'<p class=muted>No sets yet. Add your first set below.</p>'}</div></section>
+    ${act.exercises.length?`<section class="card kb-add" aria-label="Add a workout set"><h2>Add a set</h2><details class=kb-exercise-picker><summary aria-label="Choose exercise">${kbPickerThumb(act.exercise)}<span class=kb-picker-name>${selectedName}</span><span class=kb-picker-chevron aria-hidden=true>▾</span></summary><div class=kb-exercise-options role=listbox aria-label="Exercises">${exerciseOptions}</div></details><div class=kb-add-controls><button class=kb-qty-button type=button onclick="adjustKbDraftReps(-10)" aria-label="Decrease by 10 reps">−10</button><button class=kb-qty-button type=button onclick="adjustKbDraftReps(-5)" aria-label="Decrease by 5 reps">−5</button><button class=kb-qty-button type=button onclick="adjustKbDraftReps(-1)" aria-label="Decrease by 1 rep">−1</button><input id=kb-reps class=kb-qty aria-label="Repetitions in this set" type=number inputmode=numeric min=1 value="${act.draftReps}" oninput="setKbDraftReps(this.value)"><button class=kb-qty-button type=button onclick="adjustKbDraftReps(1)" aria-label="Increase by 1 rep">+1</button><button class=kb-qty-button type=button onclick="adjustKbDraftReps(5)" aria-label="Increase by 5 reps">+5</button><button class=kb-qty-button type=button onclick="adjustKbDraftReps(10)" aria-label="Increase by 10 reps">+10</button><button class=kb-add-button type=button onclick="addKbSet()" aria-label="Add set" title="Add set"><svg viewBox="0 0 24 24" aria-hidden=true fill=none stroke=currentColor stroke-width=2.5 stroke-linecap=round stroke-linejoin=round><path d="m5 12 4 4L19 6"/></svg></button></div></section>`:'<section class="card kb-add"><p class=muted>No exercises selected. Finish this workout, then choose exercises in More.</p></section>'}
+    <footer class=kb-workout-actions><button class=dng type=button onclick="discard()">Discard</button><button class=pri type=button onclick="finish()">Finish &amp; save</button></footer>
+  </div>`;
 }
 
 /* ---------- Plan ---------- */
@@ -528,8 +637,10 @@ function sportSwitcher(screen){
   return `<div class=sport-switch role=tablist aria-label="Choose exercise type"><button role=tab aria-selected="${selected==='push'}" class="${selected==='push'?'on':''}" onclick="setSport('${screen}','push')">Push-ups</button><button role=tab aria-selected="${selected==='kb'}" class="${selected==='kb'?'on':''}" onclick="setSport('${screen}','kb')">Kettlebell</button></div>`;
 }
 function render(){
+  document.body.classList.toggle('kb-active',tab==='train'&&act?.type==='kb');
   $('#nav').innerHTML=TABS.map(t=>`<button class="${tab==t[0]?'on':''}" onclick="tab='${t[0]}';render()">${t[1]}</button>`).join('');
   $('#v').innerHTML={train:vTrain,plan:vPlan,stats:vStats,more:vMore}[tab]();
+  if(tab==='train'&&act?.type==='kb')setupKbExercisePicker();
   if(['train','stats','more'].includes(tab)&&!(tab==='train'&&act))$('#v').insertAdjacentHTML('afterbegin',sportSwitcher(tab));
   if(tab==='more'&&sportByScreen.more==='kb')setupKbReorder();
 }
