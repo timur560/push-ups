@@ -43,6 +43,9 @@ label{display:block;font-size:13px;color:var(--mut);font-weight:650;margin:12px 
 .stats .card{margin:0}.stats b{display:block;font-size:29px;letter-spacing:-.04em;font-variant-numeric:tabular-nums}
 .bar{height:8px;background:var(--line);border-radius:8px;overflow:hidden;margin:9px 0 12px}.bar i{display:block;height:100%;background:var(--acc)}
 .seg{display:flex;gap:6px;margin-bottom:8px}.seg button{flex:1;padding:7px;min-height:40px}.seg .on{background:var(--ink);color:var(--bg);border-color:var(--ink)}
+.sport-switch{display:flex;gap:5px;padding:4px;margin:0 0 20px;background:var(--soft);border-radius:15px}
+.sport-switch button{flex:1;min-height:42px;padding:8px;border:0;background:transparent;color:var(--mut);border-radius:11px}
+.sport-switch button.on{background:var(--card);color:var(--ink);box-shadow:var(--shadow)}
 svg{width:100%;height:auto;display:block}
 .hist{display:flex;justify-content:space-between;align-items:center;gap:8px;padding:11px 0;border-top:1px solid var(--line)}
 .hist small{display:block;color:var(--mut)}
@@ -55,14 +58,27 @@ svg{width:100%;height:auto;display:block}
 nav{position:fixed;z-index:5;left:0;right:0;bottom:0;display:flex;justify-content:center;background:color-mix(in srgb,var(--card) 92%,transparent);backdrop-filter:blur(16px);border-top:1px solid var(--line);padding:7px 10px calc(env(safe-area-inset-bottom,0px) + 7px)}
 nav button{flex:1;max-width:140px;border:0;background:transparent;border-radius:14px;min-height:52px;color:var(--mut);padding:5px;font-size:13px}
 nav button.on{color:var(--ink);background:var(--soft);font-weight:800}
-.checkrow{display:flex;align-items:center;gap:10px;padding:9px 0;border-bottom:1px solid var(--line)}
+.checkrow{display:flex;align-items:center;gap:10px;padding:5px 0;border-bottom:1px solid var(--line);user-select:none}
 .checkrow input{width:20px;height:20px;min-height:0;accent-color:var(--ok)}
 .checkrow .exercise-name{flex:1}
 .drag-handle{touch-action:none;cursor:grab;min-height:40px;width:40px;padding:0;border:0;background:transparent;color:var(--mut);font-size:20px}
-.checkrow.dragging{opacity:.45;background:var(--soft)}
-.image-link{display:inline-flex;align-items:center;justify-content:center;width:38px;height:38px;flex:none;border-radius:12px;color:var(--mut)}
-.image-link:hover{background:var(--soft);color:var(--ink)}
-.image-link svg{width:19px;height:19px}
+.checkrow.dragging{position:fixed;z-index:10;opacity:.94;background:var(--card);box-shadow:0 10px 26px #17231d30;border-radius:12px;pointer-events:none}
+.checkrow-placeholder{border:1px dashed var(--mut);border-radius:12px;background:var(--soft);margin:5px 0}
+.exercise-thumb-button{display:block;width:48px;height:48px;min-height:48px;padding:0;flex:none;overflow:hidden;border:1px solid var(--line);border-radius:12px;background:var(--bg)}
+.exercise-thumb-button img{display:block;width:100%;height:100%;object-fit:cover}
+.exercise-thumb-button:hover{border-color:var(--ok)}
+.exercise-thumb-placeholder{display:grid;place-items:center;width:48px;height:48px;flex:none;border:1px solid var(--line);border-radius:12px;background:var(--bg);color:var(--mut);font-size:11px;text-align:center}
+.exercise-dialog{width:min(92vw,520px);max-height:min(88dvh,760px);padding:0;overflow:auto;border:1px solid var(--line);border-radius:24px;background:var(--card);color:var(--ink);box-shadow:0 24px 80px #0006}
+.exercise-dialog::backdrop{background:#101811a8;backdrop-filter:blur(3px)}
+.exercise-dialog-content{padding:20px}
+.exercise-dialog-head{display:flex;align-items:flex-start;justify-content:space-between;gap:12px;margin-bottom:14px}
+.exercise-dialog-head h2{font-size:22px;margin:0}
+.exercise-dialog-close{width:42px;min-height:42px;padding:0;font-size:22px;line-height:1}
+.exercise-picture{display:block;width:100%;max-height:56dvh;object-fit:contain;border-radius:16px;background:var(--bg)}
+.exercise-picture-note{margin:11px 0 0;color:var(--mut);font-size:14px}
+.exercise-no-picture{display:grid;place-items:center;min-height:190px;padding:24px;text-align:center;border-radius:16px;background:var(--bg);color:var(--mut)}
+.exercise-credit{margin:16px 0 0;padding-top:12px;border-top:1px solid var(--line);font-size:13px;color:var(--mut)}
+.exercise-credit a{color:inherit;font-weight:700}
 .hero{background:var(--ink);color:var(--bg);border-radius:24px;padding:23px;margin-bottom:14px}
 .hero .muted{color:color-mix(in srgb,var(--bg) 70%,transparent)}
 .hero h2{font-size:24px}
@@ -71,6 +87,7 @@ nav button.on{color:var(--ink);background:var(--soft);font-weight:800}
 </style></head>
 <body><main id="v"></main>
 <nav id="nav"></nav>
+<dialog id="exercise-dialog" class="exercise-dialog" aria-label="Exercise illustration"><div id="exercise-dialog-content"></div></dialog>
 <script>
 const K='pu_v1',A='pu_active',$=s=>document.querySelector(s);
 const KB_EXERCISES=[
@@ -83,8 +100,32 @@ const KB_EXERCISES=[
   ['figure-eight','Figure eight'],['windmill','Windmill'],['floor-press','Floor press'],
   ['reverse-lunge','Reverse lunge (goblet hold)']
 ];
+const KB_ILLUSTRATIONS={
+  swing:['kettlebell-swing','Kettlebell Swing'],
+  'goblet-squat':['goblet-squat','Goblet Squat'],
+  deadlift:['kettlebell-deadlift','Kettlebell Deadlift'],
+  clean:['kettlebell-swing-clean','Kettlebell Swing Clean'],
+  press:['one-arm-kettlebell-shoulder-press','One Arm Kettlebell Shoulder Press'],
+  snatch:['double-kettlebell-swing-snatch','Double Kettlebell Swing Snatch','Double-kettlebell variation.'],
+  row:['one-arm-kettlebell-row','One Arm Kettlebell Row','One-arm row variation.'],
+  lunge:['kettlebell-reverse-lunge','Kettlebell Reverse Lunge'],
+  'turkish-get-up':['kettlebell-turkish-get-ups','Kettlebell Turkish Get Ups'],
+  halo:['kettlebell-halo','Kettlebell Halo'],
+  'side-bend':['dumbbell-side-bend','Dumbbell Side Bend','Closest free illustration; shown with a dumbbell.'],
+  'biceps-curl':['one-arm-kettlebell-bicep-curl','One Arm Kettlebell Bicep Curl'],
+  shrug:['kettlebell-shrug','Kettlebell Shrug'],
+  'upright-row':['dumbbell-upright-row','Dumbbell Upright Row','Closest free illustration; shown with a dumbbell.'],
+  'one-arm-row':['one-arm-kettlebell-row','One Arm Kettlebell Row'],
+  'push-press':['one-arm-kettlebell-push-press','One Arm Kettlebell Push Press'],
+  'front-rack-squat':['one-arm-kettlebell-front-squat','One Arm Kettlebell Front Squat','Single-arm front squat variation.'],
+  'single-arm-swing':['one-arm-kettlebell-swing','One Arm Kettlebell Swing'],
+  windmill:['kettlebell-windmills','Kettlebell Windmills'],
+  'floor-press':['kettlebell-floor-press','Kettlebell Floor Press'],
+  'reverse-lunge':['kettlebell-reverse-lunge','Kettlebell Reverse Lunge']
+};
 const def=()=>({history:[],plan:null,rest:60,kbHistory:[],pushTests:[],kbExercises:KB_EXERCISES.slice(0,6).map(x=>x[0]),kbOrder:KB_EXERCISES.map(x=>x[0]),kbWeight:16});
 let D,act,tab='train',mode='total',editing=false,kbSetup=false,kbWeightChoice=16;
+const sportByScreen={train:'push',stats:'push',more:'push'};
 try{D=Object.assign(def(),JSON.parse(localStorage[K]||'{}'))}catch(e){D=def()}
 try{act=JSON.parse(localStorage[A]||'null')}catch(e){act=null}
 const save=()=>{try{localStorage[K]=JSON.stringify(D)}catch(e){}};
@@ -96,12 +137,13 @@ const nextIdx=()=>D.plan?D.plan.sessions.findIndex(s=>!s.done):-1;
 if(!Array.isArray(D.kbHistory))D.kbHistory=[];
 if(!Array.isArray(D.pushTests))D.pushTests=[];
 if(!Array.isArray(D.kbExercises))D.kbExercises=def().kbExercises.slice();
-const kbIds=new Set(KB_EXERCISES.map(x=>x[0]));
-const savedKbOrder=Array.isArray(D.kbOrder)?D.kbOrder:[];
-D.kbOrder=[...savedKbOrder.filter((id,i,a)=>kbIds.has(id)&&a.indexOf(id)===i),...KB_EXERCISES.map(x=>x[0]).filter(id=>!savedKbOrder.includes(id))];
-D.kbExercises=[...new Set(D.kbExercises.filter(id=>kbIds.has(id)))];
-if(!D.kbExercises.length)D.kbExercises=def().kbExercises.slice();
-if(!(D.kbWeight>0))D.kbWeight=16;
+function normalizeKbPreferences(){
+  const ids=new Set(KB_EXERCISES.map(x=>x[0])),saved=Array.isArray(D.kbOrder)?D.kbOrder:[];
+  D.kbOrder=[...saved.filter((id,i,a)=>ids.has(id)&&a.indexOf(id)===i),...KB_EXERCISES.map(x=>x[0]).filter(id=>!saved.includes(id))];
+  D.kbExercises=[...new Set(D.kbExercises.filter(id=>ids.has(id)))];
+  if(!(D.kbWeight>0))D.kbWeight=16;
+}
+normalizeKbPreferences();
 kbWeightChoice=D.kbWeight;
 
 /* ---------- Training ---------- */
@@ -129,10 +171,29 @@ function setKbCount(id,value){
   if(!act||act.type!=='kb'||!act.exercises.includes(id))return;
   act.counts[id]=Math.max(0,Math.floor(+value||0));saveAct();
 }
-function kbImageLink(name){
-  const url='https://www.google.com/search?tbm=isch&q='+encodeURIComponent(name+' kettlebell');
-  return `<a class=image-link href="${url}" target=_blank rel="noopener noreferrer" aria-label="Search Google Images for ${name} kettlebell" title="Open image search in a new tab"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden=true><path d="M14 3h7v7M10 14 21 3"></path><path d="M18 13v6a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V8a2 2 0 0 1 2-2h6"></path></svg></a>`;
+function kbImageButton(id,name){
+  const entry=KB_ILLUSTRATIONS[id];
+  return entry
+    ?`<button type=button class=exercise-thumb-button onclick="openExerciseImage('${id}')" aria-label="View ${name} illustration" title="View exercise image"><img src="./images/exercises/${entry[0]}.webp" alt="" loading=lazy></button>`
+    :`<span class=exercise-thumb-placeholder aria-label="No illustration available">No image</span>`;
 }
+function openExerciseImage(id){
+  const name=KB_EXERCISES.find(x=>x[0]===id)?.[1]||'Kettlebell exercise',entry=KB_ILLUSTRATIONS[id],dialog=$('#exercise-dialog');
+  const picture=entry
+    ?`<img class=exercise-picture src="./images/exercises/${entry[0]}.webp" alt="${entry[1]} exercise illustration" loading=eager><p class=exercise-picture-note>${entry[2]||entry[1]+' · static illustration'}</p>`
+    :'<div class=exercise-no-picture>No static illustration is available for this movement yet.</div><p class=exercise-picture-note>Check back later as the free exercise catalog grows.</p>';
+  $('#exercise-dialog-content').innerHTML=`<div class=exercise-dialog-content><div class=exercise-dialog-head><div><p class=eyebrow>Kettlebell exercise</p><h2>${name}</h2></div><button type=button class=exercise-dialog-close aria-label="Close image" onclick="closeExerciseImage()">×</button></div>${picture}<p class=exercise-credit>Exercise data by <a href="https://repdb.co" target=_blank rel="noopener noreferrer">RepDB (repdb.co)</a> · <a href="https://github.com/RepDB/exercise-dataset/blob/main/LICENSE-DATA.md" target=_blank rel="noopener noreferrer">free image license</a></p></div>`;
+  const image=dialog.querySelector('.exercise-picture');
+  if(image)image.addEventListener('error',()=>{image.outerHTML='<div class=exercise-no-picture>Illustration could not be loaded.</div>'},{once:true});
+  if(!dialog.open)dialog.showModal();
+}
+function closeExerciseImage(){
+  const dialog=$('#exercise-dialog');
+  if(dialog.open)dialog.close();
+}
+$('#exercise-dialog').addEventListener('click',event=>{
+  if(event.target===$('#exercise-dialog'))closeExerciseImage();
+});
 function adj(d){act.cur=Math.max(0,(+act.cur||0)+d);$('#cur').value=act.cur;saveAct()}
 function logSet(){
   const n=+act.cur;if(!(n>0))return;
@@ -197,17 +258,7 @@ setInterval(()=>{
 function vTrain(){
   if(act&&act.type==='push-test')return vPushTest();
   if(act&&act.type==='kb')return vKbWorkout();
-  if(!act){
-    const i=nextIdx();let h='<p class=eyebrow>Move with purpose</p><h1>Train</h1>';
-    if(i>=0){const s=D.plan.sessions[i];
-      h+=`<div class=hero><p class=eyebrow>Push-ups · planned</p><h2>Week ${s.w+1} ${s.test?'· test day':'· day '+(s.d+1)}</h2><p class=muted>${s.test?'Max test: one set to failure':s.sets.length+' sets · '+s.sets.join(' / ')+' reps'}</p><button class=pri onclick="start(${i})">Start planned session</button></div>`;
-    }else if(D.plan)h+='<div class=card><b>Plan complete</b><p class=muted>Create a new plan from your new max.</p><button onclick="tab=\'plan\';editing=true;render()">New plan</button></div>';
-    h+=`<div class=card><p class=eyebrow>Push-ups</p><h2>Open session</h2><p class=muted>Log your sets without a plan.</p><button class="${i>=0?'':'pri'}" style="width:100%" onclick="start(-1)">Start push-up session</button><button style="width:100%;margin-top:8px" onclick="startMaxTest()">Test your max</button></div>`;
-    h+=`<div class=card><p class=eyebrow>Kettlebell</p><h2>Strength, counted</h2><p class=muted>Track reps and total weight moved. No plan needed.</p>${kbSetup?`<label for=kbweight>Kettlebell weight · kg</label><input id=kbweight type=number inputmode=decimal min=1 step=.5 value="${kbWeightChoice}" oninput="kbWeightChoice=+this.value"><p class=muted>${D.kbExercises.length} exercises on your workout screen</p><button class=pri onclick="startKb()">Begin kettlebell workout</button><button style="width:100%;margin-top:8px" onclick="kbSetup=false;render()">Cancel</button>`:`<p class=muted>Last used: ${D.kbWeight} kg · ${D.kbExercises.length} exercises</p><button class=pri onclick="kbSetup=true;kbWeightChoice=D.kbWeight;render()">Start kettlebell workout</button>`}</div>`;
-    const l=D.history[D.history.length-1];
-    if(l)h+=`<div class=card><p class=eyebrow>Last push-up session</p><p class=muted>${fmtD(l.t)}</p><p class=big>${l.total} reps · ${l.sets.join(' · ')}</p></div>`;
-    return h;
-  }
+  if(!act)return sportByScreen.train==='kb'?vTrainKb():vTrainPush();
   const n=act.sets.length,s=act.pi>=0?D.plan.sessions[act.pi]:null;
   const tg=s?(s.test?'Max test: go to failure':(n<s.sets.length?`Target: ${s.sets[n]} reps`:'Plan done: extra set')):'Free workout';
   return `<h1>Set ${n+1}</h1>
@@ -219,6 +270,19 @@ function vTrain(){
   <div class=card><b>Sets so far · ${sum(act.sets)} reps</b><p class=muted>Tap a set to remove it.</p><div class=chips>${act.sets.map((x,i)=>`<button class="chip x" onclick="rmSet(${i})">${x}</button>`).join('')||'<span class=muted>No sets yet</span>'}</div></div>
   <div class=row><button class=dng onclick="discard()">Discard</button><button onclick="finish()"><b>Stop &amp; save</b></button></div>`;
 }
+function vTrainPush(){
+  const i=nextIdx();let h='<p class=eyebrow>Move with purpose</p><h1>Push-ups</h1>';
+  if(i>=0){const s=D.plan.sessions[i];
+    h+=`<div class=hero><p class=eyebrow>Planned session</p><h2>Week ${s.w+1} ${s.test?'· test day':'· day '+(s.d+1)}</h2><p class=muted>${s.test?'Max test: one set to failure':s.sets.length+' sets · '+s.sets.join(' / ')+' reps'}</p><button class=pri onclick="start(${i})">Start planned session</button></div>`;
+  }else if(D.plan)h+='<div class=card><b>Plan complete</b><p class=muted>Create a new plan from your new max.</p><button onclick="tab=\'plan\';editing=true;render()">New plan</button></div>';
+  h+=`<div class=card><p class=eyebrow>Open training</p><h2>Push-up session</h2><p class=muted>Log your sets without a plan.</p><button class="${i>=0?'':'pri'}" style="width:100%" onclick="start(-1)">Start session</button><button style="width:100%;margin-top:8px" onclick="startMaxTest()">Test your max</button></div>`;
+  const l=D.history[D.history.length-1];
+  if(l)h+=`<div class=card><p class=eyebrow>Last session</p><p class=muted>${fmtD(l.t)}</p><p class=big>${l.total} reps · ${l.sets.join(' · ')}</p></div>`;
+  return h;
+}
+function vTrainKb(){
+  return `<p class=eyebrow>Strength, counted</p><h1>Kettlebell</h1><div class=card><h2>Start a workout</h2><p class=muted>Log movements at your own pace. No training plan needed.</p>${kbSetup?`<label for=kbweight>Kettlebell weight · kg</label><input id=kbweight type=number inputmode=decimal min=1 step=.5 value="${kbWeightChoice}" oninput="kbWeightChoice=+this.value"><p class=muted>${D.kbExercises.length} exercises on your workout screen</p><button class=pri onclick="startKb()">Begin kettlebell workout</button><button style="width:100%;margin-top:8px" onclick="kbSetup=false;render()">Cancel</button>`:`<p class=big>${D.kbWeight} kg <span class=muted>· last used</span></p><p class=muted>${D.kbExercises.length} exercises selected for your workout.</p><button class=pri onclick="kbSetup=true;kbWeightChoice=D.kbWeight;render()">Choose weight &amp; start</button>`}</div>`;
+}
 function vPushTest(){
   return `<p class=eyebrow>Push-ups · max test</p><h1>Find your max</h1><div class=hero><h2>One set. Your best effort.</h2><p class=muted>Do as many controlled push-ups as you can with good form. Stop when you need to; your result is saved separately from regular workouts.</p></div><div class=card><div class=timer><span>Time <span id=el>${mmss((Date.now()-act.t0)/1000)}</span></span><span class=badge>Single set</span></div><label for=cur>Push-ups completed</label><div class=counter><button onclick="adj(-1)" aria-label="minus one">−</button><input id=cur type=number inputmode=numeric min=0 value="${act.cur}" oninput="act.cur=Math.max(0,Math.floor(+this.value||0));saveAct()"><button onclick="adj(1)" aria-label="plus one">+</button></div><button class=tap onclick="adj(1)">Tap +1 per push-up</button><button class=pri onclick="finish()">Finish &amp; save max test</button></div><button class=dng style="width:100%" onclick="discard()">Discard test</button>`;
 }
@@ -226,7 +290,7 @@ function vKbWorkout(){
   const total=Object.values(act.counts).reduce((a,b)=>a+(+b||0),0);
   const exercises=act.exercises.map(id=>{
     const name=KB_EXERCISES.find(x=>x[0]===id)?.[1]||id,count=+act.counts[id]||0;
-    return `<div class=exercise><div class=exercise-head><div><b>${name}</b><div class=muted>${act.weight} kg kettlebell</div></div>${kbImageLink(name)}<input class=exercise-count aria-label="${name} repetitions" type=number inputmode=numeric min=0 value="${count}" oninput="setKbCount('${id}',this.value)"></div><div class=stepper>${[-10,-5,-1,1,5,10].map(n=>`<button onclick="adjKb('${id}',${n})">${n>0?'+':''}${n}</button>`).join('')}</div></div>`;
+    return `<div class=exercise><div class=exercise-head><div><b>${name}</b><div class=muted>${act.weight} kg kettlebell</div></div>${kbImageButton(id,name)}<input class=exercise-count aria-label="${name} repetitions" type=number inputmode=numeric min=0 value="${count}" oninput="setKbCount('${id}',this.value)"></div><div class=stepper>${[-10,-5,-1,1,5,10].map(n=>`<button onclick="adjKb('${id}',${n})">${n>0?'+':''}${n}</button>`).join('')}</div></div>`;
   }).join('');
   return `<p class=eyebrow>Kettlebell · ${act.weight} kg</p><h1>Workout</h1><div class=card><div class=timer><span>Time <span id=el>${mmss((Date.now()-act.t0)/1000)}</span></span><span class=badge>${total*act.weight} kg moved</span></div><p class=muted>Tap the step buttons or edit a count directly.</p>${exercises||'<p class=muted>No exercises selected. Finish and choose exercises in More.</p>'}</div><div class=card><b>${total} total reps</b><p class=muted>${total*act.weight} kg volume · ${act.exercises.length} exercises</p><button class=pri onclick="finish()">Finish &amp; save workout</button></div><button class=dng style="width:100%" onclick="discard()">Discard workout</button>`;
 }
@@ -339,8 +403,11 @@ function clearStats(){
   D.history=[];D.kbHistory=[];D.pushTests=[];delete D.pendingAdjustment;if(D.plan)D.plan.sessions.forEach(s=>s.done=null);save();render();
 }
 function vStats(){
-  const H=D.history.filter(h=>h.type!=='kb'&&Array.isArray(h.sets)&&h.sets.length),K=D.kbHistory;
-  let h='<p class=eyebrow>Your training, over time</p><h1>Progress</h1>';
+  return sportByScreen.stats==='kb'?vStatsKb():vStatsPush();
+}
+function vStatsPush(){
+  const H=D.history.filter(h=>h.type!=='kb'&&Array.isArray(h.sets)&&h.sets.length);
+  let h='<p class=eyebrow>Your training, over time</p><h1>Push-up progress</h1>';
   if(H.length){
     const best=Math.max(...H.map(x=>Math.max(...x.sets)));
     h+=`<h2>Push-ups</h2><div class=stats><div class=card><b>${H.length}</b><span class=muted>workouts</span></div><div class=card><b>${sum(H.map(x=>x.total))}</b><span class=muted>total reps</span></div><div class=card><b>${best}</b><span class=muted>best set</span></div><div class=card><b>${streak()}</b><span class=muted>day streak</span></div></div><div class=card><div class=seg><button class="${mode=='total'?'on':''}" onclick="mode='total';render()">Reps / workout</button><button class="${mode=='best'?'on':''}" onclick="mode='best';render()">Best set</button></div>${chart()}</div><div class=card><b>Push-up history</b>${H.slice().reverse().map(x=>`<div class=hist><div><b>${x.total} reps</b><small>${fmtD(x.t)} · ${x.sets.join(' · ')}</small></div><button class=dng onclick="delW(${x.id})" aria-label="Delete workout">✕</button></div>`).join('')}</div>`;
@@ -349,27 +416,28 @@ function vStats(){
     const tests=D.pushTests.slice(-20),values=tests.map(x=>x.reps);
     h+=`<h2 style="margin-top:22px">Push-up max tests</h2><div class=card><p class=eyebrow>Best effort · reps in one set</p>${drawChart(tests,values,Math.max(...values,1),'reps')}</div><div class=card><b>Test history</b>${D.pushTests.slice().reverse().map(x=>`<div class=hist><div><b>${x.reps} reps</b><small>${fmtD(x.t)} · max test</small></div><button class=dng onclick="delPushTest(${x.id})" aria-label="Delete max test">✕</button></div>`).join('')}</div>`;
   }
+  if(H.length||D.pushTests.length)h+='<button class=dng style="width:100%" onclick="clearStats()">Clear all statistics</button>';
+  return h;
+}
+function vStatsKb(){
+  const K=D.kbHistory;
+  let h='<p class=eyebrow>Your training, over time</p><h1>Kettlebell progress</h1>';
   if(K.length){
     const kilos=K.reduce((total,x)=>total+(+x.kg||(+x.reps||0)*(+x.weight||0)),0),reps=K.reduce((total,x)=>total+(+x.reps||Object.values(x.counts||{}).reduce((a,b)=>a+(+b||0),0)),0);
     const KH=K.slice(-20),values=KH.map(x=>+x.kg||(+x.reps||0)*(+x.weight||0)),max=Math.max(...values,1);
-    h+=`<h2 style="margin-top:22px">Kettlebell</h2><div class=stats><div class=card><b>${K.length}</b><span class=muted>workouts</span></div><div class=card><b>${Math.round(kilos).toLocaleString()} kg</b><span class=muted>total volume</span></div><div class=card><b>${reps.toLocaleString()}</b><span class=muted>total reps</span></div><div class=card><b>${Math.round(Math.max(...values)).toLocaleString()} kg</b><span class=muted>best workout</span></div></div><div class=card><p class=eyebrow>Volume per workout</p>${KH.length<2?'<p class=muted>Save another kettlebell workout to see your progress chart.</p>':drawChart(KH,values,max,'kg')}</div><div class=card><b>Kettlebell history</b>${K.slice().reverse().map(x=>{const count=+x.reps||Object.values(x.counts||{}).reduce((a,b)=>a+(+b||0),0),volume=+x.kg||count*(+x.weight||0);return `<div class=hist><div><b>${Math.round(volume).toLocaleString()} kg · ${count} reps</b><small>${fmtD(x.t)} · ${x.weight} kg kettlebell</small></div><button class=dng onclick="delKB(${x.id})" aria-label="Delete kettlebell workout">✕</button></div>`}).join('')}</div>`;
+    h+=`<div class=stats><div class=card><b>${K.length}</b><span class=muted>workouts</span></div><div class=card><b>${Math.round(kilos).toLocaleString()} kg</b><span class=muted>total volume</span></div><div class=card><b>${reps.toLocaleString()}</b><span class=muted>total reps</span></div><div class=card><b>${Math.round(Math.max(...values)).toLocaleString()} kg</b><span class=muted>best workout</span></div></div><div class=card><p class=eyebrow>Volume per workout</p>${KH.length<2?'<p class=muted>Save another kettlebell workout to see your progress chart.</p>':drawChart(KH,values,max,'kg')}</div><div class=card><b>Kettlebell history</b>${K.slice().reverse().map(x=>{const count=+x.reps||Object.values(x.counts||{}).reduce((a,b)=>a+(+b||0),0),volume=+x.kg||count*(+x.weight||0);return `<div class=hist><div><b>${Math.round(volume).toLocaleString()} kg · ${count} reps</b><small>${fmtD(x.t)} · ${x.weight} kg kettlebell</small></div><button class=dng onclick="delKB(${x.id})" aria-label="Delete kettlebell workout">✕</button></div>`}).join('')}</div>`;
   }else h+='<div class=card><p class=muted>No kettlebell workouts yet. Start a session to see your volume progress here.</p></div>';
-  if(H.length||K.length||D.pushTests.length)h+='<button class=dng style="width:100%" onclick="clearStats()">Clear all statistics</button>';
+  if(K.length)h+='<button class=dng style="width:100%" onclick="clearStats()">Clear all statistics</button>';
   return h;
 }
 
 /* ---------- More ---------- */
 function setRest(v){D.rest=+v;save()}
-function saveKbExercises(){
-  const rows=Array.from(document.querySelectorAll('.checkrow[data-exercise]'));
-  const order=rows.map(row=>row.dataset.exercise),selected=rows.filter(row=>row.querySelector('[name=kbx]').checked).map(row=>row.dataset.exercise);
-  if(!selected.length){alert('Select at least one exercise for your workout screen.');render();return}
-  D.kbOrder=order;D.kbExercises=selected;save();render();
-}
 function persistKbOrder(){
-  const selected=new Set(D.kbExercises);
-  D.kbOrder=Array.from(document.querySelectorAll('.checkrow[data-exercise]'),row=>row.dataset.exercise);
-  D.kbExercises=D.kbOrder.filter(id=>selected.has(id));save();
+  const rows=Array.from(document.querySelectorAll('.checkrow[data-exercise]'));
+  D.kbOrder=rows.map(row=>row.dataset.exercise);
+  D.kbExercises=rows.filter(row=>row.querySelector('[name=kbx]').checked).map(row=>row.dataset.exercise);
+  save();
 }
 function moveKbRow(handle,direction){
   const row=handle.closest('.checkrow'),other=direction<0?row?.previousElementSibling:row?.nextElementSibling;
@@ -382,11 +450,22 @@ function setupKbReorder(){
   const root=$('#v');
   if(root.dataset.kbReorderReady)return;
   root.dataset.kbReorderReady='true';
+  root.addEventListener('change',event=>{
+    if(!event.target.matches('[name=kbx]'))return;
+    const rows=Array.from(root.querySelectorAll('.checkrow[data-exercise]'));
+    if(!rows.some(item=>item.querySelector('[name=kbx]').checked)){
+      event.target.checked=true;alert('Keep at least one exercise selected for your workout screen.');return;
+    }
+    D.kbExercises=rows.filter(item=>item.querySelector('[name=kbx]').checked).map(item=>item.dataset.exercise);save();
+  });
   root.addEventListener('pointerdown',event=>{
     const handle=event.target.closest('[data-drag-handle]');
     if(!handle)return;
     event.preventDefault();
-    kbDrag={row:handle.closest('.checkrow'),pointerId:event.pointerId,x:event.clientX,y:event.clientY,moved:false};
+    const row=handle.closest('.checkrow'),rect=row.getBoundingClientRect(),placeholder=document.createElement('div');
+    placeholder.className='checkrow-placeholder';placeholder.style.height=rect.height+'px';row.parentNode.insertBefore(placeholder,row);
+    row.classList.add('dragging');row.style.width=rect.width+'px';row.style.left=rect.left+'px';row.style.top=rect.top+'px';
+    kbDrag={row,placeholder,pointerId:event.pointerId,offsetY:event.clientY-rect.top,moved:false};
   });
   root.addEventListener('keydown',event=>{
     const handle=event.target.closest('[data-drag-handle]');
@@ -396,17 +475,22 @@ function setupKbReorder(){
   });
   document.addEventListener('pointermove',event=>{
     if(!kbDrag||event.pointerId!==kbDrag.pointerId)return;
-    if(!kbDrag.moved&&Math.hypot(event.clientX-kbDrag.x,event.clientY-kbDrag.y)<6)return;
-    kbDrag.moved=true;kbDrag.row.classList.add('dragging');
-    const target=document.elementFromPoint(event.clientX,event.clientY)?.closest('.checkrow[data-exercise]');
-    if(!target||target===kbDrag.row||target.parentNode!==kbDrag.row.parentNode)return;
+    kbDrag.moved=true;kbDrag.row.style.top=Math.max(0,event.clientY-kbDrag.offsetY)+'px';
+    if(event.clientY<75)window.scrollBy(0,-14);
+    else if(event.clientY>window.innerHeight-75)window.scrollBy(0,14);
+    const target=document.elementsFromPoint(event.clientX,event.clientY).map(el=>el.closest?.('.checkrow[data-exercise]')).find(row=>row&&row!==kbDrag.row);
+    if(!target||target.parentNode!==kbDrag.placeholder.parentNode)return;
     const rect=target.getBoundingClientRect();
-    target.parentNode.insertBefore(kbDrag.row,event.clientY<rect.top+rect.height/2?target:target.nextSibling);
+    const before=event.clientY<rect.top+rect.height/2;
+    if(before&&kbDrag.placeholder!==target.previousElementSibling)target.parentNode.insertBefore(kbDrag.placeholder,target);
+    else if(!before&&kbDrag.placeholder!==target.nextElementSibling)target.parentNode.insertBefore(kbDrag.placeholder,target.nextSibling);
   });
   const finish=event=>{
     if(!kbDrag||event.pointerId!==kbDrag.pointerId)return;
-    const moved=kbDrag.moved;kbDrag.row.classList.remove('dragging');kbDrag=null;
-    if(moved){persistKbOrder();render()}
+    const drag=kbDrag;kbDrag=null;
+    drag.placeholder.parentNode.insertBefore(drag.row,drag.placeholder);drag.placeholder.remove();
+    drag.row.classList.remove('dragging');drag.row.style.width='';drag.row.style.left='';drag.row.style.top='';
+    if(drag.moved)persistKbOrder();
   };
   document.addEventListener('pointerup',finish);
   document.addEventListener('pointercancel',finish);
@@ -417,23 +501,37 @@ function exp(){
 }
 function imp(inp){
   const f=inp.files[0];if(!f)return;const r=new FileReader();
-  r.onload=()=>{try{const x=JSON.parse(r.result);if(!Array.isArray(x.history))throw 0;if(confirm('Replace current data with this backup?')){D=Object.assign(def(),x);save();render()}}catch(e){alert('This file is not a valid backup.')}};
+  r.onload=()=>{try{const x=JSON.parse(r.result);if(!Array.isArray(x.history))throw 0;if(confirm('Replace current data with this backup?')){D=Object.assign(def(),x);normalizeKbPreferences();save();render()}}catch(e){alert('This file is not a valid backup.')}};
   r.readAsText(f);
 }
 function vMore(){
-  return `<p class=eyebrow>Personalize your training</p><h1>More</h1>
-  <div class=card><p class=eyebrow>Kettlebell setup</p><h2>Exercises on your workout screen</h2><p class=muted>Select the movements you want, then drag the grip to reorder them. The image icon searches Google Images for each kettlebell exercise.</p>${D.kbOrder.map(id=>{const [,name]=KB_EXERCISES.find(x=>x[0]===id);return `<div class=checkrow data-exercise="${id}"><button class=drag-handle type=button data-drag-handle aria-label="Drag to reorder ${name}" title="Drag to reorder" onpointerdown="event.preventDefault()">⠿</button><input type=checkbox name=kbx value="${id}" aria-label="Include ${name} in workout" ${D.kbExercises.includes(id)?'checked':''}><span class=exercise-name>${name}</span>${kbImageLink(name)}</div>`}).join('')}<button class=pri style="margin-top:12px" onclick="saveKbExercises()">Save exercises</button><label for=kbdefault>Default kettlebell · kg</label><input id=kbdefault type=number min=1 step=.5 value="${D.kbWeight}" onchange="D.kbWeight=+this.value>0?+this.value:16;kbWeightChoice=D.kbWeight;save();render()"></div>
-  <div class=card><label for=rs>Push-up rest timer between sets</label><select id=rs onchange="setRest(this.value)">${[0,30,45,60,90,120,180].map(x=>`<option value=${x} ${x==D.rest?'selected':''}>${x?x+' seconds':'Off'}</option>`).join('')}</select></div>
-  <div class=card><b>Backup</b><p class=muted>Export includes your existing push-up progress, plans, and kettlebell workouts and settings.</p><div class=row><button onclick="exp()">Export</button><button onclick="$('#imp').click()">Import</button></div><input id=imp type=file accept=application/json hidden onchange="imp(this)"></div>
+  return sportByScreen.more==='kb'?vMoreKb():vMorePush();
+}
+function vMorePush(){
+  return `<p class=eyebrow>Personalize your training</p><h1>Push-up settings</h1>
+  <div class=card><label for=rs>Rest timer between sets</label><select id=rs onchange="setRest(this.value)">${[0,30,45,60,90,120,180].map(x=>`<option value=${x} ${x==D.rest?'selected':''}>${x?x+' seconds':'Off'}</option>`).join('')}</select></div>${moreShared()}`;
+}
+function vMoreKb(){
+  return `<p class=eyebrow>Personalize your training</p><h1>Kettlebell settings</h1>
+  <div class=card><p class=eyebrow>Kettlebell setup</p><h2>Exercises on your workout screen</h2><p class=muted>Select exercises or drag the grip to reorder. Changes save automatically. Tap an image to see a larger static reference.</p>${D.kbOrder.map(id=>{const [,name]=KB_EXERCISES.find(x=>x[0]===id);return `<div class=checkrow data-exercise="${id}"><button class=drag-handle type=button data-drag-handle aria-label="Drag to reorder ${name}" title="Drag to reorder" onpointerdown="event.preventDefault()">⠿</button><input type=checkbox name=kbx value="${id}" aria-label="Include ${name} in workout" ${D.kbExercises.includes(id)?'checked':''}><span class=exercise-name>${name}</span>${kbImageButton(id,name)}</div>`}).join('')}<label for=kbdefault>Default kettlebell · kg</label><input id=kbdefault type=number min=1 step=.5 value="${D.kbWeight}" onchange="D.kbWeight=+this.value>0?+this.value:16;kbWeightChoice=D.kbWeight;save();render()"></div>${moreShared()}`;
+}
+function moreShared(){
+  return `<div class=card><p class=muted>Exercise data by <a href="https://repdb.co" target=_blank rel="noopener noreferrer">RepDB (repdb.co)</a>.</p></div><div class=card><b>Backup</b><p class=muted>Export includes your push-up progress, plans, kettlebell workouts, and settings.</p><div class=row><button onclick="exp()">Export</button><button onclick="$('#imp').click()">Import</button></div><input id=imp type=file accept=application/json hidden onchange="imp(this)"></div>
   <div class=card><b>Install on your phone</b><p class=muted>Android Chrome: menu → Install app. iPhone Safari: Share → Add to Home Screen. The screen stays awake during a workout.</p></div>`;
 }
 
 /* ---------- Shell ---------- */
 const TABS=[['train','Train'],['plan','Plan'],['stats','Progress'],['more','More']];
+function setSport(screen,sport){sportByScreen[screen]=sport;if(screen==='train')kbSetup=false;render()}
+function sportSwitcher(screen){
+  const selected=sportByScreen[screen];
+  return `<div class=sport-switch role=tablist aria-label="Choose exercise type"><button role=tab aria-selected="${selected==='push'}" class="${selected==='push'?'on':''}" onclick="setSport('${screen}','push')">Push-ups</button><button role=tab aria-selected="${selected==='kb'}" class="${selected==='kb'?'on':''}" onclick="setSport('${screen}','kb')">Kettlebell</button></div>`;
+}
 function render(){
   $('#nav').innerHTML=TABS.map(t=>`<button class="${tab==t[0]?'on':''}" onclick="tab='${t[0]}';render()">${t[1]}</button>`).join('');
   $('#v').innerHTML={train:vTrain,plan:vPlan,stats:vStats,more:vMore}[tab]();
-  if(tab==='more')setupKbReorder();
+  if(['train','stats','more'].includes(tab)&&!(tab==='train'&&act))$('#v').insertAdjacentHTML('afterbegin',sportSwitcher(tab));
+  if(tab==='more'&&sportByScreen.more==='kb')setupKbReorder();
 }
 render();
 
